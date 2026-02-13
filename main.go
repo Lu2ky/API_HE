@@ -17,9 +17,9 @@ var db *sql.DB
 /* Saving the session of MySQL, this is global for the access in all methods */
 
 type User struct {
-	Id    int    `json:"T_idUsuario"`
-	Name  string `json:"T_nombre"`
-	Email string `json:"T_correo"`
+	Id       int    `json:"T_idUsuario"`
+	Name     string `json:"T_nombre"`
+	Programa string `json:"T_programa"`
 }
 
 func main() {
@@ -33,10 +33,12 @@ func main() {
 	cfg.Net = "tcp"
 	cfg.Addr = os.Getenv("DB_ADDR") + ":" + os.Getenv("DB_ADDR_PORT")
 	cfg.DBName = os.Getenv("DB_NAME")
-	db, err := sql.Open("mysql", cfg.FormatDSN())
-	if err != nil {
-		log.Fatal("Error connecting to database:", err)
+	var err2 error
+	db, err2 = sql.Open("mysql", cfg.FormatDSN())
+	if err2 != nil {
+		log.Fatal("Error connecting to database:", err2)
 	}
+	defer db.Close()
 	defer db.Close()
 	router := gin.Default()                     //Create the default router for POST/GET methods
 	router.GET("/GetUserById/:id", getUserById) /* Use the / for subdirectorys in the localhost:3912
@@ -54,7 +56,7 @@ func getUserById(c *gin.Context) {
 	/* Extract the id param for the query	*/
 	var UserSaved User
 	/* Put the param in the query remplace '?' for the id */
-	err := db.QueryRow("SELECT T_idUsuario, T_nombre, T_correo FROM Usuario WHERE id = ?", id).Scan(&UserSaved.Id, &UserSaved.Name, &UserSaved.Email)
+	err := db.QueryRow("SELECT T_codUsuario, T_nombre, T_programa FROM Usuarios WHERE T_codUsuario = ?", id).Scan(&UserSaved.Id, &UserSaved.Name, &UserSaved.Programa)
 	/* test the insert the query in the database */
 	if err != nil {
 		if err == sql.ErrNoRows {
