@@ -311,3 +311,44 @@ func deleteOrRecoveryPersonalScheduleByIdCourse(c *gin.Context) {
 		"rowsAffected": rowsAffected,
 	})
 }
+func addPersonalActivity(c *gin.Context){
+	var newPerActivity NewPersonalActivity
+	err := c.BindJSON(&newPerActivity)
+	if err != nil {
+		c.JSON(400, gin.H{"Palurdo": "formato invalido de json"})
+		return
+	}
+	result, err := db.Exec("INSERT INTO Cursos (T_nombre, N_idEtiqueta, T_descripcion) VALUES ( ? , ? , ?)", newPerActivity.Activity, newPerActivity.IdTag,newPerActivity.Description)
+	if err != nil {
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(404, gin.H{"error": "Personal schedule not found"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message":      "Personal schedule updated successfully",
+		"rowsAffected": rowsAffected,
+	})
+	result0, err := db.Exec("INSERT INTO dias_clase(N_dia, TM_horaInicio, TM_horaFin) VALUES ( ? , ? , ?)", newPerActivity.Day, newPerActivity.StartHour,newPerActivity.EndHour)
+	if err != nil {
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+	rowsAffected0, _ := result0.RowsAffected()
+	if rowsAffected0 == 0 {
+		c.JSON(404, gin.H{"error": "Personal schedule not found"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message":      "Personal schedule updated successfully",
+		"rowsAffected": rowsAffected,
+	})
+
+}
