@@ -40,11 +40,13 @@ type PersonalSchedule struct {
 	N_idcourse  int    `json:"N_idcourse"`
 	Activity    string `json:"Activity"`
 	Tag         string `json:"Tag"`
-	Description string `json:"Description"`
+	Description sql.NullString `json:"Description"`
+	Dt_Start	sql.NullString `json:"Dt_Start"`
+	Dt_End		sql.NullString `json:"Dt_End"`
 	Day         int    `json:"Day"`
 	StartHour   string `json:"StartHour"`
 	EndHour     string `json:"EndHour"`
-	IsDeleted   bool   `json:"IsDeleted"`
+	IsDeleted   *sql.NullBool   `json:"IsDeleted"`
 }
 type PersonalScheduleNewValue struct {
 	NewActivityValue   string `json:"NewActivityValue" binding:"required"`
@@ -91,6 +93,7 @@ func main() {
 	router.POST("/updateStartHourOfPersonalScheduleByIdCourse", updateStartHourOfPersonalScheduleByIdCourse)
 	router.POST("/updateEndHourOfPersonalScheduleByIdCourse", updateEndHourOfPersonalScheduleByIdCourse)
 	router.POST("/deleteOrRecoveryPersonalScheduleByIdCourse", deleteOrRecoveryPersonalScheduleByIdCourse)
+	router.POST("/addPersonalActivity", addPersonalActivity)
 	router.Run("0.0.0.0:3913") // The port number for expone the API
 }
 func method(c *gin.Context) {}
@@ -120,62 +123,88 @@ func getUserById(c *gin.Context) {
 }
 func getOfficialScheduleByUserId(c *gin.Context) {
 	id := c.Param("id")
-	var rows *sql.Rows
-	var err error
-	var r string
-	var err2 error
-	err2 = db.QueryRow("SELECT N_idUsuario FROM Usuarios WHERE T_codUsuario= ? ", id).Scan(&r)
-	if err2 != nil {
-		log.Printf("Database error: %v", err)
-		c.JSON(500, gin.H{"error": "Internal server error"}) //ERROR 500
-		return
-	}
-	rows, err = db.Query("SELECT * FROM ActividadesOficiales WHERE N_idUsuario= ? ", r)
+
+	rows, err := db.Query(`
+		SELECT ao.*
+		FROM ActividadesOficiales ao
+		JOIN Usuarios u ON ao.N_idUsuario = u.N_idUsuario
+		WHERE u.T_codUsuario = ?
+	`, id)
+
 	if err != nil {
 		log.Printf("Database error: %v", err)
-		c.JSON(500, gin.H{"error": "Internal server error"}) //ERROR 500
+		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
 	defer rows.Close()
 
 	var ofcschedules []OfficialSchedule
+
 	for rows.Next() {
 		var ofcschedule OfficialSchedule
-		err := rows.Scan(&ofcschedule.N_iduser, &ofcschedule.N_idcourse, &ofcschedule.Nrc, &ofcschedule.Course, &ofcschedule.Tag, &ofcschedule.Day, &ofcschedule.StartHour, &ofcschedule.EndHour, &ofcschedule.Classroom, &ofcschedule.Credits, &ofcschedule.Standardofcalification, &ofcschedule.Campus)
+		err := rows.Scan(
+			&ofcschedule.N_iduser,
+			&ofcschedule.N_idcourse,
+			&ofcschedule.Nrc,
+			&ofcschedule.Course,
+			&ofcschedule.Tag,
+			&ofcschedule.Day,
+			&ofcschedule.StartHour,
+			&ofcschedule.EndHour,
+			&ofcschedule.Classroom,
+			&ofcschedule.Credits,
+			&ofcschedule.Standardofcalification,
+			&ofcschedule.Campus,
+		)
 		if err != nil {
 			log.Printf("Scan error: %v", err)
-			c.JSON(500, gin.H{"Error": "Error en procesamiento de datos"})
+			c.JSON(500, gin.H{"error": "Error en procesamiento de datos"})
 			return
 		}
 		ofcschedules = append(ofcschedules, ofcschedule)
-
 	}
+
+	if err = rows.Err(); err != nil {
+		log.Printf("Rows error: %v", err)
+		c.JSON(500, gin.H{"error": "Error leyendo resultados"})
+		return
+	}
+
 	c.JSON(200, ofcschedules)
 }
+
 func getPersonalScheduleByUserId(c *gin.Context) {
 	id := c.Param("id")
 	var rows *sql.Rows
-	var err error
-	var r string
-	var err2 error
-	err2 = db.QueryRow("SELECT N_idUsuario FROM Usuarios WHERE T_codUsuario= ? ", id).Scan(&r)
-	if err2 != nil {
-		log.Printf("Database error: %v", err)
-		c.JSON(500, gin.H{"error": "Internal server error"}) //ERROR 500
-		return
-	}
-	rows, err = db.Query("SELECT * FROM ActividadesPersonales WHERE N_idUsuario= ? ", r)
+		rows, err := db.Query(`
+		SELECT ao.*
+		FROM ActividadesPersonales ao
+		JOIN Usuarios u ON ao.N_idUsuario = u.N_idUsuario
+		WHERE u.T_codUsuario = ?
+	`, id)
+
 	if err != nil {
 		log.Printf("Database error: %v", err)
-		c.JSON(500, gin.H{"error": "Internal server error"}) //ERROR 500
+		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
+	defer rows.Close()
+
 	defer rows.Close()
 
 	var perschedules []PersonalSchedule
 	for rows.Next() {
 		var perschedule PersonalSchedule
-		err := rows.Scan(&perschedule.N_iduser, &perschedule.N_idcourse, &perschedule.Activity, &perschedule.Tag, &perschedule.Description, &perschedule.Day, &perschedule.StartHour, &perschedule.EndHour, &perschedule.IsDeleted)
+		err := rows.Scan(&perschedule.N_iduser, 
+			&perschedule.N_idcourse, 
+			&perschedule.Activity, &perschedule.Tag, 
+			&perschedule.Description, 
+			&perschedule.Dt_Start,
+			&perschedule.Dt_End,
+			&perschedule.Day, 
+			&perschedule.StartHour, 
+			&perschedule.EndHour, 
+			&perschedule.IsDeleted)
 		if err != nil {
 			log.Printf("Scan error: %v", err)
 			c.JSON(500, gin.H{"Error": "Error en procesamiento de datos"})
@@ -324,31 +353,43 @@ func addPersonalActivity(c *gin.Context){
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		c.JSON(404, gin.H{"error": "Personal schedule not found"})
-		return
-	}
-
-	c.JSON(200, gin.H{
-		"message":      "Personal schedule updated successfully",
-		"rowsAffected": rowsAffected,
-	})
-	result0, err := db.Exec("INSERT INTO dias_clase(N_dia, TM_horaInicio, TM_horaFin) VALUES ( ? , ? , ?)", newPerActivity.Day, newPerActivity.StartHour,newPerActivity.EndHour)
+	cursoID, err := result.LastInsertId()
 	if err != nil {
-		log.Printf("Database error: %v", err)
+        log.Printf("Failed to get curso ID: %v", err)
+        c.JSON(500, gin.H{"error": "Internal server error"})
+        return
+    }
+	result0, err0 := db.Exec("INSERT INTO dias_clase(N_dia, TM_horaInicio, TM_horaFin) VALUES ( ? , ? , ?)", newPerActivity.Day, newPerActivity.StartHour,newPerActivity.EndHour)
+	if err != nil {
+		log.Printf("Database error: %v", err0)
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
-	rowsAffected0, _ := result0.RowsAffected()
-	if rowsAffected0 == 0 {
-		c.JSON(404, gin.H{"error": "Personal schedule not found"})
+	diaClaseID, err := result0.LastInsertId()
+    if err != nil {
+        log.Printf("Failed to get dia clase ID: %v", err)
+        c.JSON(500, gin.H{"error": "Internal server error"})
+        return
+    }
+
+	
+	_, err1 := db.Exec("INSERT INTO Materia_has_dias_clase (N_idCurso, N_idDiasClase) VALUES (?, ?);", cursoID, diaClaseID);
+	if err != nil {
+		log.Printf("Database error: %v", err1)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+	
+	_, err2 := db.Exec("INSERT INTO horario (N_idUsuario, N_idCurso, N_idPeriodoAcademico) VALUES (?, ? ,?);", newPerActivity.N_iduser, cursoID, newPerActivity.Id_AcademicPeriod)
+	if err != nil {
+		log.Printf("Database error: %v", err2)
+		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
 
 	c.JSON(200, gin.H{
-		"message":      "Personal schedule updated successfully",
-		"rowsAffected": rowsAffected,
-	})
-
+        "message": "Personal activity added successfully",
+        "cursoID": cursoID,
+        "diaClaseID": diaClaseID,
+    })
 }
