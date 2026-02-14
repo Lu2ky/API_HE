@@ -64,7 +64,7 @@ type NewPersonalActivity struct {
 	StartHour   string `json:"StartHour"`
 	EndHour     string `json:"EndHour"`
 	N_iduser    int    `json:"N_iduser"`
-	Id_AcademicPeriod int `json:"Id_AcademicPeriod "`
+	Id_AcademicPeriod int `json:"Id_AcademicPeriod"`
 }
 
 func main() {
@@ -340,56 +340,101 @@ func deleteOrRecoveryPersonalScheduleByIdCourse(c *gin.Context) {
 		"rowsAffected": rowsAffected,
 	})
 }
-func addPersonalActivity(c *gin.Context){
+func addPersonalActivity(c *gin.Context) {
 	var newPerActivity NewPersonalActivity
 	err := c.BindJSON(&newPerActivity)
 	if err != nil {
-		c.JSON(400, gin.H{"Palurdo": "formato invalido de json"})
+		c.JSON(400, gin.H{"error": "formato invalido de json"})
 		return
 	}
-	result, err := db.Exec("INSERT INTO Cursos (T_nombre, N_idEtiqueta, T_descripcion) VALUES ( ? , ? , ?)", newPerActivity.Activity, newPerActivity.IdTag,newPerActivity.Description)
+
+	tx, err := db.Begin()
 	if err != nil {
+		log.Printf("Transaction error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+	var exists int
+    err = db.QueryRow("SELECT COUNT(*) FROM PeriodoAcademico WHERE N_idPeriodoAcademico = ?", 
+        newPerActivity.Id_AcademicPeriod).Scan(&exists)
+    
+    if err != nil {
+        log.Printf("Database error: %v", err)
+        c.JSON(500, gin.H{"error": "Internal server error"})
+        return
+    }
+	result, err := tx.Exec(
+		"INSERT INTO Cursos (T_nombre, N_idEtiqueta, T_descripcion) VALUES (?, ?, ?)",
+		newPerActivity.Activity,
+		newPerActivity.IdTag,
+		newPerActivity.Description,
+	)
+	if err != nil {
+		tx.Rollback()
 		log.Printf("Database error: %v", err)
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
 	cursoID, err := result.LastInsertId()
 	if err != nil {
-        log.Printf("Failed to get curso ID: %v", err)
-        c.JSON(500, gin.H{"error": "Internal server error"})
-        return
-    }
-	result0, err0 := db.Exec("INSERT INTO dias_clase(N_dia, TM_horaInicio, TM_horaFin) VALUES ( ? , ? , ?)", newPerActivity.Day, newPerActivity.StartHour,newPerActivity.EndHour)
-	if err != nil {
-		log.Printf("Database error: %v", err0)
+		tx.Rollback()
+		log.Printf("Failed to get curso ID: %v", err)
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
-	diaClaseID, err := result0.LastInsertId()
-    if err != nil {
-        log.Printf("Failed to get dia clase ID: %v", err)
-        c.JSON(500, gin.H{"error": "Internal server error"})
-        return
-    }
+	result0, err := tx.Exec(
+		"INSERT INTO dias_clase(N_dia, TM_horaInicio, TM_horaFin) VALUES (?, ?, ?)",
+		newPerActivity.Day,
+		newPerActivity.StartHour,
+		newPerActivity.EndHour,
+	)
+	if err != nil {
+		tx.Rollback()
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
 
-	
-	_, err1 := db.Exec("INSERT INTO Materia_has_dias_clase (N_idCurso, N_idDiasClase) VALUES (?, ?);", cursoID, diaClaseID);
+	diaClaseID, err := result0.LastInsertId()
 	if err != nil {
-		log.Printf("Database error: %v", err1)
+		tx.Rollback()
+		log.Printf("Failed to get dia clase ID: %v", err)
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
-	
-	_, err2 := db.Exec("INSERT INTO horario (N_idUsuario, N_idCurso, N_idPeriodoAcademico) VALUES (?, ? ,?);", newPerActivity.N_iduser, cursoID, newPerActivity.Id_AcademicPeriod)
+	_, err = tx.Exec(
+		"INSERT INTO Materia_has_dias_clase (N_idCurso, N_idDiasClase) VALUES ((SELECT N_idCurso FROM Cursos WHERE T_nombre = ? AND T_descripcion = ?),  (SELECT N_idDiasCase FROM dias_clase WHERE N_dia = ? AND TM_horaInicio = ? AND TM_horaFin = ?))",
+		newPerActivity.Activity,
+		newPerActivity.Description,
+		newPerActivity.Day,newPerActivity.
+		StartHour,
+		newPerActivity.EndHour)
 	if err != nil {
-		log.Printf("Database error: %v", err2)
+		tx.Rollback()
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+	_, err = tx.Exec(
+		"INSERT INTO horario (N_idUsuario, N_idCurso, N_idPeriodoAcademico) VALUES (?, (SELECT N_idCurso FROM Cursos WHERE T_nombre = ? AND T_descripcion = ?),?);",newPerActivity.N_iduser,newPerActivity.Activity,newPerActivity.Description,newPerActivity.Id_AcademicPeriod)
+	if err != nil {
+		tx.Rollback()
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Printf("Commit error: %v", err)
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
 
 	c.JSON(200, gin.H{
-        "message": "Personal activity added successfully",
-        "cursoID": cursoID,
-        "diaClaseID": diaClaseID,
-    })
+		"message":    "Actividad creada correctamente",
+		"cursoID":    cursoID,
+		"diaClaseID": diaClaseID,
+	})
 }
+
