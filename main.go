@@ -21,17 +21,38 @@ type User struct {
 	Name     string `json:"T_nombre"`
 	Programa string `json:"T_programa"`
 }
-type Schedule struct {
-	Nrc        string          `json:"nrc_curso"`
-	Nombre     string          `json:"nombre_curso"`
-	Etiqueta   string          `json:"etiqueta_curso"`
-	Dia        int             `json:"dia_curso"`
-	HoraIni    string          `json:"hora_inicio_curso"`
-	HoraFin    string          `json:"hora_fin_curso"`
-	Salon      string          `json:"salon_curso"`
-	Creditos   sql.NullFloat64 `json:"creditos_curso"`
-	Mcalificar string          `json:"mcalificar_curso"`
-	Campus     string          `json:"campus_curso"`
+type OfficialSchedule struct {
+	N_iduser               int             `json:"N_iduser"`
+	N_idcourse             int             `json:"N_idcourse"`
+	Nrc                    string          `json:"Nrc"`
+	Course                 string          `json:"Course"`
+	Tag                    string          `json:"Tag"`
+	Day                    int             `json:"Day"`
+	StartHour              string          `json:"StartHour"`
+	EndHour                string          `json:"EndHour"`
+	Classroom              string          `json:"Classroom"`
+	Credits                sql.NullFloat64 `json:"Credits"`
+	Standardofcalification string          `json:"Standardofcalification"`
+	Campus                 string          `json:"Campus"`
+}
+type PersonalSchedule struct {
+	N_iduser    int    `json:"N_iduser"`
+	N_idcourse  int    `json:"N_idcourse"`
+	Activity    string `json:"Activity"`
+	Tag         string `json:"Tag"`
+	Description string `json:"Description"`
+	Day         int    `json:"Day"`
+	StartHour   string `json:"StartHour"`
+	EndHour     string `json:"EndHour"`
+	IsDeleted   bool   `json:"IsDeleted"`
+}
+type PersonalScheduleNewValue struct {
+	NewActivityValue   string `json:"NewActivityValue" binding:"required"`
+	IdPersonalSchedule int    `json:"IdPersonalSchedule" binding:"required"`
+}
+type forDeleteOrRecoveryPersonalSchedule struct {
+	IsDeleted          *bool `json:"IsDeleted" binding:"required"`
+	IdPersonalSchedule int   `json:"IdPersonalSchedule" binding:"required"`
 }
 
 func main() {
@@ -53,8 +74,14 @@ func main() {
 	defer db.Close()
 	router := gin.Default()                     //Create the default router for POST/GET methods
 	router.GET("/GetUserById/:id", getUserById) /* Use the / for subdirectorys in the localhost:3912 and references the method */
-	router.GET("/GetScheduleByUserId/:id", getScheduleByUserId)
-	router.Run("0.0.0.0:3912") // The port number for expone the API
+	router.GET("/GetOfficialScheduleByUserId/:id", getOfficialScheduleByUserId)
+	router.GET("/GetPersonalScheduleByUserId/:id", getPersonalScheduleByUserId)
+	router.POST("/updateNameOfPersonalScheduleByIdCourse", updateNameOfPersonalScheduleByIdCourse)
+	router.POST("/updateDescriptionOfPersonalScheduleByIdCourse", updateDescriptionOfPersonalScheduleByIdCourse)
+	router.POST("/updateStartHourOfPersonalScheduleByIdCourse", updateStartHourOfPersonalScheduleByIdCourse)
+	router.POST("/updateEndHourOfPersonalScheduleByIdCourse", updateEndHourOfPersonalScheduleByIdCourse)
+	router.POST("/deleteOrRecoveryPersonalScheduleByIdCourse", deleteOrRecoveryPersonalScheduleByIdCourse)
+	router.Run("0.0.0.0:3913") // The port number for expone the API
 }
 func method(c *gin.Context) {}
 
@@ -81,7 +108,7 @@ func getUserById(c *gin.Context) {
 	}
 	c.JSON(200, UserSaved) /* 200 = post the json in http */
 }
-func getScheduleByUserId(c *gin.Context) {
+func getOfficialScheduleByUserId(c *gin.Context) {
 	id := c.Param("id")
 	var rows *sql.Rows
 	var err error
@@ -93,7 +120,7 @@ func getScheduleByUserId(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Internal server error"}) //ERROR 500
 		return
 	}
-	rows, err = db.Query("SELECT c.T_nrcCurso AS 'NRC', c.T_nombre AS 'Curso',  e.T_nombre AS 'Etiqueta', d.N_dia AS 'Dia', d.TM_horaInicio AS 'Hora de inicio', d.TM_horaFin AS 'Hora de fin', d.T_salon AS 'Salón', c.N_creditos AS 'Créditos', c.T_modoCalificar AS 'Modo de calificar', c.T_campus AS 'Campus' FROM Cursos c, Etiqueta e, horario h, dias_clase d, Materia_has_dias_clase m WHERE c.N_idCurso=h.N_idCurso AND d.N_idDiasCase=m.N_idDiasClase AND c.N_idCurso=m.N_idCurso AND c.N_idEtiqueta= e.N_idEtiqueta AND h.N_idUsuario= ? ", r)
+	rows, err = db.Query("SELECT * FROM ActividadesOficiales WHERE N_idUsuario= ? ", r)
 	if err != nil {
 		log.Printf("Database error: %v", err)
 		c.JSON(500, gin.H{"error": "Internal server error"}) //ERROR 500
@@ -101,18 +128,176 @@ func getScheduleByUserId(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var schedules []Schedule
+	var ofcschedules []OfficialSchedule
 	for rows.Next() {
-		var schedule Schedule
-		err := rows.Scan(&schedule.Nrc, &schedule.Nombre, &schedule.Etiqueta, &schedule.Dia, &schedule.HoraIni, &schedule.HoraFin, &schedule.Salon, &schedule.Creditos, &schedule.Mcalificar, &schedule.Campus)
+		var ofcschedule OfficialSchedule
+		err := rows.Scan(&ofcschedule.N_iduser, &ofcschedule.N_idcourse, &ofcschedule.Nrc, &ofcschedule.Course, &ofcschedule.Tag, &ofcschedule.Day, &ofcschedule.StartHour, &ofcschedule.EndHour, &ofcschedule.Classroom, &ofcschedule.Credits, &ofcschedule.Standardofcalification, &ofcschedule.Campus)
 		if err != nil {
 			log.Printf("Scan error: %v", err)
 			c.JSON(500, gin.H{"Error": "Error en procesamiento de datos"})
 			return
 		}
-		schedules = append(schedules, schedule)
+		ofcschedules = append(ofcschedules, ofcschedule)
 
 	}
-	c.JSON(200, schedules)
+	c.JSON(200, ofcschedules)
+}
+func getPersonalScheduleByUserId(c *gin.Context) {
+	id := c.Param("id")
+	var rows *sql.Rows
+	var err error
+	var r string
+	var err2 error
+	err2 = db.QueryRow("SELECT N_idUsuario FROM Usuarios WHERE T_codUsuario= ? ", id).Scan(&r)
+	if err2 != nil {
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"}) //ERROR 500
+		return
+	}
+	rows, err = db.Query("SELECT * FROM ActividadesPersonales WHERE N_idUsuario= ? ", r)
+	if err != nil {
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"}) //ERROR 500
+		return
+	}
+	defer rows.Close()
 
+	var perschedules []PersonalSchedule
+	for rows.Next() {
+		var perschedule PersonalSchedule
+		err := rows.Scan(&perschedule.N_iduser, &perschedule.N_idcourse, &perschedule.Activity, &perschedule.Tag, &perschedule.Description, &perschedule.Day, &perschedule.StartHour, &perschedule.EndHour, &perschedule.IsDeleted)
+		if err != nil {
+			log.Printf("Scan error: %v", err)
+			c.JSON(500, gin.H{"Error": "Error en procesamiento de datos"})
+			return
+		}
+		perschedules = append(perschedules, perschedule)
+
+	}
+	c.JSON(200, perschedules)
+}
+func updateNameOfPersonalScheduleByIdCourse(c *gin.Context) {
+	var newValue PersonalScheduleNewValue
+	err := c.BindJSON(&newValue)
+	if err != nil {
+		c.JSON(400, gin.H{"Palurdo": "formato invalido de json"})
+		return
+	}
+	result, err := db.Exec("UPDATE ActividadesPersonales SET Actividad = ? WHERE N_idCurso= ? ", newValue.NewActivityValue, newValue.IdPersonalSchedule)
+	if err != nil {
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(404, gin.H{"error": "Personal schedule not found"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message":      "Personal schedule updated successfully",
+		"rowsAffected": rowsAffected,
+	})
+}
+func updateDescriptionOfPersonalScheduleByIdCourse(c *gin.Context) {
+	var newValue PersonalScheduleNewValue
+	err := c.BindJSON(&newValue)
+	if err != nil {
+		c.JSON(400, gin.H{"Palurdo": "formato invalido de json"})
+		return
+	}
+	result, err := db.Exec("UPDATE ActividadesPersonales SET Descripcion = ? WHERE N_idCurso= ? ", newValue.NewActivityValue, newValue.IdPersonalSchedule)
+	if err != nil {
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(404, gin.H{"error": "Personal schedule not found"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message":      "Personal schedule updated successfully",
+		"rowsAffected": rowsAffected,
+	})
+}
+func updateStartHourOfPersonalScheduleByIdCourse(c *gin.Context) {
+	var newValue PersonalScheduleNewValue
+	err := c.BindJSON(&newValue)
+	if err != nil {
+		c.JSON(400, gin.H{"Palurdo": "formato invalido de json"})
+		return
+	}
+	result, err := db.Exec("UPDATE ActividadesPersonales SET Hora_Inicio = ? WHERE N_idCurso= ? ", newValue.NewActivityValue, newValue.IdPersonalSchedule)
+	if err != nil {
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(404, gin.H{"error": "Personal schedule not found"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message":      "Personal schedule updated successfully",
+		"rowsAffected": rowsAffected,
+	})
+}
+func updateEndHourOfPersonalScheduleByIdCourse(c *gin.Context) {
+	var newValue PersonalScheduleNewValue
+	err := c.BindJSON(&newValue)
+	if err != nil {
+		c.JSON(400, gin.H{"Palurdo": "formato invalido de json"})
+		return
+	}
+	result, err := db.Exec("UPDATE ActividadesPersonales SET Hora_Fin = ? WHERE N_idCurso= ? ", newValue.NewActivityValue, newValue.IdPersonalSchedule)
+	if err != nil {
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(404, gin.H{"error": "Personal schedule not found"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message":      "Personal schedule updated successfully",
+		"rowsAffected": rowsAffected,
+	})
+}
+func deleteOrRecoveryPersonalScheduleByIdCourse(c *gin.Context) {
+	var deleteValue forDeleteOrRecoveryPersonalSchedule
+	err := c.BindJSON(&deleteValue)
+	if err != nil {
+		c.JSON(400, gin.H{"Palurdo": "formato invalido de json"})
+		return
+	}
+	result, err := db.Exec("UPDATE ActividadesPersonales SET B_isDeleted = ? WHERE N_idCurso=?", deleteValue.IsDeleted, deleteValue.IdPersonalSchedule)
+	if err != nil {
+		log.Printf("Database error: %v", err)
+		c.JSON(500, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(404, gin.H{"error": "Personal schedule not found"})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message":      "Personal schedule updated successfully",
+		"rowsAffected": rowsAffected,
+	})
 }
