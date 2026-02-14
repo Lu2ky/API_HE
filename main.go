@@ -54,7 +54,7 @@ func main() {
 	router := gin.Default()                     //Create the default router for POST/GET methods
 	router.GET("/GetUserById/:id", getUserById) /* Use the / for subdirectorys in the localhost:3912 and references the method */
 	router.GET("/GetScheduleByUserId/:id", getScheduleByUserId)
-	router.Run("localhost:3912") // The port number for expone the API
+	router.Run("0.0.0.0:3912") // The port number for expone the API
 }
 func method(c *gin.Context) {}
 
