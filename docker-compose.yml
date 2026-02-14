@@ -1,0 +1,10 @@
+version: "1.0"
+
+services:
+  api_he:
+    build: .
+    container_name: api_he_container
+    ports:
+      - "8080:3913"
+    env_file:
+      - .env
