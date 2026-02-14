@@ -354,15 +354,6 @@ func addPersonalActivity(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
-	var exists int
-    err = db.QueryRow("SELECT COUNT(*) FROM PeriodoAcademico WHERE N_idPeriodoAcademico = ?", 
-        newPerActivity.Id_AcademicPeriod).Scan(&exists)
-    
-    if err != nil {
-        log.Printf("Database error: %v", err)
-        c.JSON(500, gin.H{"error": "Internal server error"})
-        return
-    }
 	result, err := tx.Exec(
 		"INSERT INTO Cursos (T_nombre, N_idEtiqueta, T_descripcion) VALUES (?, ?, ?)",
 		newPerActivity.Activity,
@@ -403,12 +394,9 @@ func addPersonalActivity(c *gin.Context) {
 		return
 	}
 	_, err = tx.Exec(
-		"INSERT INTO Materia_has_dias_clase (N_idCurso, N_idDiasClase) VALUES ((SELECT N_idCurso FROM Cursos WHERE T_nombre = ? AND T_descripcion = ?),  (SELECT N_idDiasCase FROM dias_clase WHERE N_dia = ? AND TM_horaInicio = ? AND TM_horaFin = ?))",
-		newPerActivity.Activity,
-		newPerActivity.Description,
-		newPerActivity.Day,newPerActivity.
-		StartHour,
-		newPerActivity.EndHour)
+		"INSERT INTO Materia_has_dias_clase (N_idCurso, N_idDiasClase) VALUES (?, ?)",
+		cursoID,
+		diaClaseID)
 	if err != nil {
 		tx.Rollback()
 		log.Printf("Database error: %v", err)
@@ -416,7 +404,7 @@ func addPersonalActivity(c *gin.Context) {
 		return
 	}
 	_, err = tx.Exec(
-		"INSERT INTO horario (N_idUsuario, N_idCurso, N_idPeriodoAcademico) VALUES (?, (SELECT N_idCurso FROM Cursos WHERE T_nombre = ? AND T_descripcion = ?),?);",newPerActivity.N_iduser,newPerActivity.Activity,newPerActivity.Description,newPerActivity.Id_AcademicPeriod)
+		"INSERT INTO horario (N_idUsuario, N_idCurso, N_idPeriodoAcademico) VALUES (?, ?,?);",newPerActivity.N_iduser,cursoID,newPerActivity.Id_AcademicPeriod)
 	if err != nil {
 		tx.Rollback()
 		log.Printf("Database error: %v", err)
