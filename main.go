@@ -59,14 +59,34 @@ type forDeleteOrRecoveryPersonalSchedule struct {
 type NewPersonalActivity struct {
 	Activity string `json:"Activity"`
 	Description string `json:"Description"`
-	IdTag         int `json:"IdTag"`
+	IdTag       int `json:"IdTag"`
 	Day         int    `json:"Day"`
 	StartHour   string `json:"StartHour"`
 	EndHour     string `json:"EndHour"`
 	N_iduser    int    `json:"N_iduser"`
 	Id_AcademicPeriod int `json:"Id_AcademicPeriod"`
 }
-
+func apiKeyAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		apiKey := c.GetHeader("X-API-Key")
+		validAPIKey := os.Getenv("API_KEY")
+		if validAPIKey == "" {
+			log.Fatal("API_KEY no configurada en el archivo .env")
+		}
+		if apiKey == "" {
+			c.JSON(401, gin.H{"error": "API Key requerida. Incluya el header X-API-Key"})
+			c.Abort()
+			return
+		}
+		if apiKey != validAPIKey {
+			c.JSON(403, gin.H{"error": "API Key inválida"})
+			c.Abort()
+			return
+		}
+		
+		c.Next()
+	}
+}
 func main() {
 	err := godotenv.Load() // Load enviorement variables
 	if err != nil {
@@ -85,7 +105,7 @@ func main() {
 	}
 	defer db.Close()
 	router := gin.Default()                     //Create the default router for POST/GET methods
-	router.GET("/GetUserById/:id", getUserById) /* Use the / for subdirectorys in the localhost:3912 and references the method */
+	//router.GET("/GetUserById/:id", getUserById) /* Use the / for subdirectorys in the localhost:3912 and references the method */
 	router.GET("/GetOfficialScheduleByUserId/:id", getOfficialScheduleByUserId)
 	router.GET("/GetPersonalScheduleByUserId/:id", getPersonalScheduleByUserId)
 	router.POST("/updateNameOfPersonalScheduleByIdCourse", updateNameOfPersonalScheduleByIdCourse)
@@ -102,25 +122,7 @@ func method(c *gin.Context) {}
 
 /* This function is a basic get for get the users from database */
 
-func getUserById(c *gin.Context) {
-	id := c.Param("id")
-	/* Extract the id param for the query	*/
-	var UserSaved User
-	/* Put the param in the query remplace '?' for the id */
 
-	err := db.QueryRow("SELECT T_codUsuario, T_nombre, T_programa FROM Usuarios WHERE T_codUsuario = ?", id).Scan(&UserSaved.Id, &UserSaved.Name, &UserSaved.Programa)
-	/* test the insert the query in the database */
-	if err != nil {
-		if err == sql.ErrNoRows {
-			c.JSON(404, gin.H{"error": "User not found"}) //ERROR 404
-			return
-		}
-		log.Printf("Database error: %v", err)
-		c.JSON(500, gin.H{"error": "Internal server error"}) //ERROR 500
-		return
-	}
-	c.JSON(200, UserSaved) /* 200 = post the json in http */
-}
 func getOfficialScheduleByUserId(c *gin.Context) {
 	id := c.Param("id")
 
@@ -354,49 +356,38 @@ func addPersonalActivity(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
-	result, err := tx.Exec(
-		"INSERT INTO Cursos (T_nombre, N_idEtiqueta, T_descripcion) VALUES (?, ?, ?)",
+	_, err0 := tx.Exec(
+		"INSERT INTO Cursos (T_nombre, N_idEtiqueta, T_descripcion) VALUES (?, ?, ?);",
 		newPerActivity.Activity,
 		newPerActivity.IdTag,
 		newPerActivity.Description,
 	)
-	if err != nil {
+	if err0 != nil {
 		tx.Rollback()
-		log.Printf("Database error: %v", err)
+		log.Printf("Database error: %v", err0)
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
-	cursoID, err := result.LastInsertId()
-	if err != nil {
-		tx.Rollback()
-		log.Printf("Failed to get curso ID: %v", err)
-		c.JSON(500, gin.H{"error": "Internal server error"})
-		return
-	}
-	result0, err := tx.Exec(
-		"INSERT INTO dias_clase(N_dia, TM_horaInicio, TM_horaFin) VALUES (?, ?, ?)",
+	_, err1 := tx.Exec(
+		"INSERT INTO dias_clase(N_dia, TM_horaInicio, TM_horaFin) VALUES (?,?,?);",
 		newPerActivity.Day,
 		newPerActivity.StartHour,
 		newPerActivity.EndHour,
 	)
-	if err != nil {
+	if err1 != nil {
 		tx.Rollback()
-		log.Printf("Database error: %v", err)
+		log.Printf("Database error: %v", err1)
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
 
-	diaClaseID, err := result0.LastInsertId()
-	if err != nil {
-		tx.Rollback()
-		log.Printf("Failed to get dia clase ID: %v", err)
-		c.JSON(500, gin.H{"error": "Internal server error"})
-		return
-	}
 	_, err = tx.Exec(
-		"INSERT INTO Materia_has_dias_clase (N_idCurso, N_idDiasClase) VALUES (?, ?)",
-		cursoID,
-		diaClaseID)
+		"INSERT INTO Materia_has_dias_clase (N_idCurso, N_idDiasClase) VALUES ((SELECT N_idCurso FROM Cursos WHERE T_nombre = ? AND T_descripcion = ?), (SELECT N_idDiasCase FROM dias_clase WHERE N_dia = ? AND TM_horaInicio = ? AND TM_horaFin = ?);",
+		newPerActivity.Activity,
+		newPerActivity.Description,
+		newPerActivity.Day,
+		newPerActivity.StartHour,
+		newPerActivity.EndHour)
 	if err != nil {
 		tx.Rollback()
 		log.Printf("Database error: %v", err)
@@ -404,7 +395,11 @@ func addPersonalActivity(c *gin.Context) {
 		return
 	}
 	_, err = tx.Exec(
-		"INSERT INTO horario (N_idUsuario, N_idCurso, N_idPeriodoAcademico) VALUES (?, ?,?);",newPerActivity.N_iduser,cursoID,newPerActivity.Id_AcademicPeriod)
+		"INSERT INTO horario (N_idUsuario, N_idCurso, N_idPeriodoAcademico) VALUES (?, (SELECT N_idCurso FROM Cursos WHERE T_nombre = ? AND T_descripcion = ?),?);",
+		newPerActivity.N_iduser,
+		newPerActivity.Activity,
+		newPerActivity.Description,
+		newPerActivity.Id_AcademicPeriod)
 	if err != nil {
 		tx.Rollback()
 		log.Printf("Database error: %v", err)
@@ -421,8 +416,6 @@ func addPersonalActivity(c *gin.Context) {
 
 	c.JSON(200, gin.H{
 		"message":    "Actividad creada correctamente",
-		"cursoID":    cursoID,
-		"diaClaseID": diaClaseID,
 	})
 }
 
