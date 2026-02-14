@@ -106,8 +106,7 @@ func main() {
 	}
 	defer db.Close()
 	router := gin.Default()
-	router.Use(apiKeyAuth()) //Create the default router for POST/GET methods
-	//router.GET("/GetUserById/:id", getUserById) /* Use the / for subdirectorys in the localhost:3912 and references the method */
+	router.Use(apiKeyAuth())
 	router.GET("/GetOfficialScheduleByUserId/:id", getOfficialScheduleByUserId)
 	router.GET("/GetPersonalScheduleByUserId/:id", getPersonalScheduleByUserId)
 	router.POST("/updateNameOfPersonalScheduleByIdCourse", updateNameOfPersonalScheduleByIdCourse)
