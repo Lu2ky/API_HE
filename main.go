@@ -36,17 +36,17 @@ type OfficialSchedule struct {
 	Campus                 string          `json:"Campus"`
 }
 type PersonalSchedule struct {
-	N_iduser    int    `json:"N_iduser"`
-	N_idcourse  int    `json:"N_idcourse"`
-	Activity    string `json:"Activity"`
-	Tag         string `json:"Tag"`
+	N_iduser    int            `json:"N_iduser"`
+	N_idcourse  int            `json:"N_idcourse"`
+	Activity    string         `json:"Activity"`
+	Tag         string         `json:"Tag"`
 	Description sql.NullString `json:"Description"`
-	Dt_Start	sql.NullString `json:"Dt_Start"`
-	Dt_End		sql.NullString `json:"Dt_End"`
-	Day         int    `json:"Day"`
-	StartHour   string `json:"StartHour"`
-	EndHour     string `json:"EndHour"`
-	IsDeleted   *sql.NullBool   `json:"IsDeleted"`
+	Dt_Start    sql.NullString `json:"Dt_Start"`
+	Dt_End      sql.NullString `json:"Dt_End"`
+	Day         int            `json:"Day"`
+	StartHour   string         `json:"StartHour"`
+	EndHour     string         `json:"EndHour"`
+	IsDeleted   *sql.NullBool  `json:"IsDeleted"`
 }
 type PersonalScheduleNewValue struct {
 	NewActivityValue   string `json:"NewActivityValue" binding:"required"`
@@ -57,33 +57,34 @@ type forDeleteOrRecoveryPersonalSchedule struct {
 	IdPersonalSchedule int   `json:"IdPersonalSchedule" binding:"required"`
 }
 type NewPersonalActivity struct {
-	Activity string `json:"Activity"`
-	Description string `json:"Description"`
-	IdTag       int `json:"IdTag"`
-	Day         int    `json:"Day"`
-	StartHour   string `json:"StartHour"`
-	EndHour     string `json:"EndHour"`
-	N_iduser    int    `json:"N_iduser"`
-	Id_AcademicPeriod int `json:"Id_AcademicPeriod"`
+	Activity          string `json:"Activity"`
+	Description       string `json:"Description"`
+	IdTag             int    `json:"IdTag"`
+	Day               int    `json:"Day"`
+	StartHour         string `json:"StartHour"`
+	EndHour           string `json:"EndHour"`
+	N_iduser          int    `json:"N_iduser"`
+	Id_AcademicPeriod int    `json:"Id_AcademicPeriod"`
 }
+
 func apiKeyAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		apiKey := c.GetHeader("X-API-Key")
 		validAPIKey := os.Getenv("API_KEY")
 		if validAPIKey == "" {
-			log.Fatal("API_KEY no configurada en el archivo .env")
+			log.Fatal("API_KEY no configurada .env")
 		}
 		if apiKey == "" {
-			c.JSON(401, gin.H{"error": "API Key requerida. Incluya el header X-API-Key"})
+			c.JSON(401, gin.H{"error": "API Key necesaria para uso"})
 			c.Abort()
 			return
 		}
 		if apiKey != validAPIKey {
-			c.JSON(403, gin.H{"error": "API Key inválida"})
+			c.JSON(403, gin.H{"error": "API Key invalida"})
 			c.Abort()
 			return
 		}
-		
+
 		c.Next()
 	}
 }
@@ -104,7 +105,8 @@ func main() {
 		log.Fatal("Error connecting to database:", err2)
 	}
 	defer db.Close()
-	router := gin.Default()                     //Create the default router for POST/GET methods
+	router := gin.Default()
+	router.Use(apiKeyAuth()) //Create the default router for POST/GET methods
 	//router.GET("/GetUserById/:id", getUserById) /* Use the / for subdirectorys in the localhost:3912 and references the method */
 	router.GET("/GetOfficialScheduleByUserId/:id", getOfficialScheduleByUserId)
 	router.GET("/GetPersonalScheduleByUserId/:id", getPersonalScheduleByUserId)
@@ -121,7 +123,6 @@ func method(c *gin.Context) {}
 // c *gin.Context essential for method in GET/POST actions
 
 /* This function is a basic get for get the users from database */
-
 
 func getOfficialScheduleByUserId(c *gin.Context) {
 	id := c.Param("id")
@@ -178,7 +179,7 @@ func getOfficialScheduleByUserId(c *gin.Context) {
 func getPersonalScheduleByUserId(c *gin.Context) {
 	id := c.Param("id")
 	var rows *sql.Rows
-		rows, err := db.Query(`
+	rows, err := db.Query(`
 		SELECT ao.*
 		FROM ActividadesPersonales ao
 		JOIN Usuarios u ON ao.N_idUsuario = u.N_idUsuario
@@ -192,20 +193,18 @@ func getPersonalScheduleByUserId(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	defer rows.Close()
-
 	var perschedules []PersonalSchedule
 	for rows.Next() {
 		var perschedule PersonalSchedule
-		err := rows.Scan(&perschedule.N_iduser, 
-			&perschedule.N_idcourse, 
-			&perschedule.Activity, &perschedule.Tag, 
-			&perschedule.Description, 
+		err := rows.Scan(&perschedule.N_iduser,
+			&perschedule.N_idcourse,
+			&perschedule.Activity, &perschedule.Tag,
+			&perschedule.Description,
 			&perschedule.Dt_Start,
 			&perschedule.Dt_End,
-			&perschedule.Day, 
-			&perschedule.StartHour, 
-			&perschedule.EndHour, 
+			&perschedule.Day,
+			&perschedule.StartHour,
+			&perschedule.EndHour,
 			&perschedule.IsDeleted)
 		if err != nil {
 			log.Printf("Scan error: %v", err)
@@ -415,7 +414,6 @@ func addPersonalActivity(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"message":    "Actividad creada correctamente",
+		"message": "Actividad creada correctamente",
 	})
 }
-
