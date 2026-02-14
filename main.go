@@ -54,6 +54,16 @@ type forDeleteOrRecoveryPersonalSchedule struct {
 	IsDeleted          *bool `json:"IsDeleted" binding:"required"`
 	IdPersonalSchedule int   `json:"IdPersonalSchedule" binding:"required"`
 }
+type NewPersonalActivity struct {
+	Activity string `json:"Activity"`
+	Description string `json:"Description"`
+	IdTag         int `json:"IdTag"`
+	Day         int    `json:"Day"`
+	StartHour   string `json:"StartHour"`
+	EndHour     string `json:"EndHour"`
+	N_iduser    int    `json:"N_iduser"`
+	Id_AcademicPeriod int `json:"Id_AcademicPeriod "`
+}
 
 func main() {
 	err := godotenv.Load() // Load enviorement variables
