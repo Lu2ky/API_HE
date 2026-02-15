@@ -353,54 +353,54 @@ func addPersonalActivity(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Internal server error"})
 		return
 	}
-	_, err0 := tx.Exec(
+	result0, err0 := tx.Exec(
 		"INSERT INTO Cursos (T_nombre, N_idEtiqueta, T_descripcion) VALUES (?, ?, ?);",
 		newPerActivity.Activity,
 		newPerActivity.IdTag,
 		newPerActivity.Description,
 	)
+	idCurso, _ := result0.LastInsertId()
+
 	if err0 != nil {
 		tx.Rollback()
 		log.Printf("Database error: %v", err0)
-		c.JSON(500, gin.H{"error": "Internal server error"})
+		c.JSON(500, gin.H{"error": "Error en primer query"})
 		return
 	}
-	_, err1 := tx.Exec(
-		"INSERT INTO Cursos (T_nombre, N_idEtiqueta, T_descripcion) VALUES (?, ?, ?)",
+	result1, err1 := tx.Exec(
+		"INSERT INTO dias_clase(N_dia, TM_horaInicio, TM_horaFin) VALUES (?, ?, ?)",
 		newPerActivity.Day,
 		newPerActivity.StartHour,
 		newPerActivity.EndHour,
 	)
+	nIdDias, _ := result1.LastInsertId()
 	if err1 != nil {
 		tx.Rollback()
 		log.Printf("Database error: %v", err1)
-		c.JSON(500, gin.H{"error": "Internal server error"})
+		c.JSON(500, gin.H{"error": "Error en segunda query"})
 		return
 	}
 
 	_, err = tx.Exec(
-		"INSERT INTO Materia_has_dias_clase(N_idCurso, N_idDiasClase) VALUES ((SELECT N_idCurso FROM Cursos WHERE T_nombre = ? AND T_descripcion = ?), (SELECT N_idDiasCase FROM dias_clase WHERE N_dia = ? AND TM_horaInicio = ? AND TM_horaFin = ?));",
-		newPerActivity.Activity,
-		newPerActivity.Description,
-		newPerActivity.Day,
-		newPerActivity.StartHour,
-		newPerActivity.EndHour)
+		"INSERT INTO Materia_has_dias_clase(N_idCurso, N_idDiasClase) VALUES (?, ?);",
+		idCurso,
+		nIdDias,
+	)
 	if err != nil {
 		tx.Rollback()
 		log.Printf("Database error: %v", err)
-		c.JSON(500, gin.H{"error": "Duplicidad en Materia"})
+		c.JSON(500, gin.H{"error": "Error en tercer query"})
 		return
 	}
 	_, err = tx.Exec(
-		"INSERT INTO horario (N_idUsuario, N_idCurso, N_idPeriodoAcademico) VALUES (?, (SELECT N_idCurso FROM Cursos WHERE T_nombre = ? AND T_descripcion = ?),?);",
+		"INSERT INTO horario (N_idUsuario, N_idCurso, N_idPeriodoAcademico) VALUES (?, ?,?);",
 		newPerActivity.N_iduser,
-		newPerActivity.Activity,
-		newPerActivity.Description,
+		idCurso,
 		newPerActivity.Id_AcademicPeriod)
 	if err != nil {
 		tx.Rollback()
 		log.Printf("Database error: %v", err)
-		c.JSON(500, gin.H{"error": "Duplicidad en horario"})
+		c.JSON(500, gin.H{"error": "Error en cuarto query"})
 		return
 	}
 
