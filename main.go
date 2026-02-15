@@ -27,6 +27,7 @@ type OfficialSchedule struct {
 	Nrc                    string          `json:"Nrc"`
 	Course                 string          `json:"Course"`
 	Tag                    string          `json:"Tag"`
+	Teacher                string          `json:"Teacher"`
 	Day                    int             `json:"Day"`
 	StartHour              string          `json:"StartHour"`
 	EndHour                string          `json:"EndHour"`
@@ -34,6 +35,7 @@ type OfficialSchedule struct {
 	Credits                sql.NullFloat64 `json:"Credits"`
 	Standardofcalification string          `json:"Standardofcalification"`
 	Campus                 string          `json:"Campus"`
+	AcademicPeriod         string          `json:"AcademicPeriod"`
 }
 type PersonalSchedule struct {
 	N_iduser    int            `json:"N_iduser"`
@@ -126,12 +128,7 @@ func method(c *gin.Context) {}
 func getOfficialScheduleByUserId(c *gin.Context) {
 	id := c.Param("id")
 
-	rows, err := db.Query(`
-		SELECT ao.*
-		FROM ActividadesOficiales ao
-		JOIN Usuarios u ON ao.N_idUsuario = u.N_idUsuario
-		WHERE u.T_codUsuario = ?
-	`, id)
+	rows, err := db.Query(`SELECT ao.* FROM ActividadesOficiales ao JOIN Usuarios u ON ao.N_idUsuario = u.N_idUsuario WHERE u.T_codUsuario = ?`, id)
 
 	if err != nil {
 		log.Printf("Database error: %v", err)
@@ -150,6 +147,7 @@ func getOfficialScheduleByUserId(c *gin.Context) {
 			&ofcschedule.Nrc,
 			&ofcschedule.Course,
 			&ofcschedule.Tag,
+			&ofcschedule.Teacher,
 			&ofcschedule.Day,
 			&ofcschedule.StartHour,
 			&ofcschedule.EndHour,
@@ -157,6 +155,7 @@ func getOfficialScheduleByUserId(c *gin.Context) {
 			&ofcschedule.Credits,
 			&ofcschedule.Standardofcalification,
 			&ofcschedule.Campus,
+			&ofcschedule.AcademicPeriod,
 		)
 		if err != nil {
 			log.Printf("Scan error: %v", err)
@@ -367,7 +366,7 @@ func addPersonalActivity(c *gin.Context) {
 		return
 	}
 	_, err1 := tx.Exec(
-		"INSERT INTO dias_clase(N_dia, TM_horaInicio, TM_horaFin) VALUES (?,?,?);",
+		"INSERT INTO Cursos (T_nombre, N_idEtiqueta, T_descripcion) VALUES (?, ?, ?)",
 		newPerActivity.Day,
 		newPerActivity.StartHour,
 		newPerActivity.EndHour,
@@ -380,7 +379,7 @@ func addPersonalActivity(c *gin.Context) {
 	}
 
 	_, err = tx.Exec(
-		"INSERT INTO Materia_has_dias_clase (N_idCurso, N_idDiasClase) VALUES ((SELECT N_idCurso FROM Cursos WHERE T_nombre = ? AND T_descripcion = ?), (SELECT N_idDiasCase FROM dias_clase WHERE N_dia = ? AND TM_horaInicio = ? AND TM_horaFin = ?);",
+		"INSERT INTO Materia_has_dias_clase(N_idCurso, N_idDiasClase) VALUES ((SELECT N_idCurso FROM Cursos WHERE T_nombre = ? AND T_descripcion = ?), (SELECT N_idDiasCase FROM dias_clase WHERE N_dia = ? AND TM_horaInicio = ? AND TM_horaFin = ?));",
 		newPerActivity.Activity,
 		newPerActivity.Description,
 		newPerActivity.Day,
@@ -389,7 +388,7 @@ func addPersonalActivity(c *gin.Context) {
 	if err != nil {
 		tx.Rollback()
 		log.Printf("Database error: %v", err)
-		c.JSON(500, gin.H{"error": "Internal server error"})
+		c.JSON(500, gin.H{"error": "Duplicidad en Materia"})
 		return
 	}
 	_, err = tx.Exec(
@@ -401,7 +400,7 @@ func addPersonalActivity(c *gin.Context) {
 	if err != nil {
 		tx.Rollback()
 		log.Printf("Database error: %v", err)
-		c.JSON(500, gin.H{"error": "Internal server error"})
+		c.JSON(500, gin.H{"error": "Duplicidad en horario"})
 		return
 	}
 
